@@ -1,0 +1,439 @@
+@page "/"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@implements IAsyncDisposable
+@inject ItemService Itens
+@inject ImagemService Imagens
+@inject IJSRuntime JS
+
+<PageTitle>OrganizaJob</PageTitle>
+
+<div class="app">
+    <aside>
+        <div class="brand"><i>&gt;_</i>OrganizaJob</div>
+        <button class="newbtn" type="button" @onclick="Novo"><span>+ Novo item</span><kbd>Ctrl+N</kbd></button>
+
+        <nav class="navgroup">
+            <h4>Tipos</h4>
+            <button type="button" class="nav @(filtroTodos ? "on" : "")" @onclick="() => FiltrarTipo(null, false)">
+                <span class="dot t-todos"></span>Tudo<span class="n">@todos.Count</span>
+            </button>
+            <button type="button" class="nav @(filtroFav ? "on" : "")" @onclick="() => FiltrarTipo(null, true)">
+                <span class="dot t-fav"></span>Favoritos<span class="n">@todos.Count(i => i.Favorito)</span>
+            </button>
+            @foreach (var tipo in Enum.GetValues<ItemTipo>())
+            {
+                var t = tipo;
+                <button type="button" class="nav @(filtroTipo == t ? "on" : "")" @onclick="() => FiltrarTipo(t, false)">
+                    <span class="dot @t.Css()"></span>@t.Plural()
+                    @if (t == ItemTipo.Lembrete && LembretesVencidos > 0)
+                    {
+                        <span class="badge" title="Lembretes vencidos">@LembretesVencidos</span>
+                    }
+                    <span class="n">@todos.Count(i => i.Tipo == t)</span>
+                </button>
+            }
+        </nav>
+
+        @if (TagsMaisUsadas.Any())
+        {
+            <nav class="navgroup">
+                <h4>Tags</h4>
+                @foreach (var (tag, qtd) in TagsMaisUsadas)
+                {
+                    var tg = tag;
+                    <button type="button" class="nav tagnav @(filtroTag == tg ? "on" : "")" @onclick="() => FiltrarTag(tg)">
+                        #@tg<span class="n">@qtd</span>
+                    </button>
+                }
+            </nav>
+        }
+
+        <div class="asidefoot">
+            @if (permissaoNotificacao == "default")
+            {
+                <button type="button" class="linkbtn" @onclick="PedirNotificacoes">Ativar avisos de lembrete</button>
+            }
+            else if (permissaoNotificacao == "denied")
+            {
+                <small>Avisos bloqueados no navegador. Os lembretes aparecem só aqui.</small>
+            }
+        </div>
+    </aside>
+
+    <section class="list">
+        <div class="search">
+            <div class="sbox">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                <input id="busca" type="search" placeholder="Buscar…  (#tag filtra por tag)" aria-label="Buscar"
+                       @bind="busca" @bind:event="oninput" />
+                <kbd>Ctrl+K</kbd>
+            </div>
+            <div class="listhead">
+                <span>@Filtrados.Count @(Filtrados.Count == 1 ? "item" : "itens")@(filtroTag is null ? "" : $" em #{filtroTag}")</span>
+                <select aria-label="Ordem" @bind="ordem">
+                    <option value="@Ordem.Recentes">Recentes</option>
+                    <option value="@Ordem.MaisUsados">Mais usados</option>
+                    <option value="@Ordem.Alfabetica">A–Z</option>
+                </select>
+            </div>
+        </div>
+        <div class="items">
+            @if (carregando)
+            {
+                <div class="empty">Carregando…</div>
+            }
+            else if (todos.Count == 0)
+            {
+                <div class="empty">
+                    <b>Nada salvo ainda.</b><br />
+                    Clique em <b>+ Novo item</b> (ou Ctrl+N) e cole um script ou um print.
+                </div>
+            }
+            else if (Filtrados.Count == 0)
+            {
+                <div class="empty">Nada encontrado.<br />Tente outra palavra ou limpe o filtro.</div>
+            }
+            else
+            {
+                @foreach (var item in Filtrados)
+                {
+                    var it = item;
+                    <div class="item @(it.Id == selId ? "on" : "")" tabindex="0" @key="it.Id"
+                         @onclick="() => Selecionar(it.Id)" @onkeydown="e => TeclaItem(e, it.Id)">
+                        <div class="stripe @it.Tipo.Css()"></div>
+                        <div class="itembody">
+                            <div class="top">
+                                <span class="title">@(it.Favorito ? "★ " : "")@it.Titulo</span>
+                                <span class="when">@Quando(it.AtualizadoEm)</span>
+                            </div>
+                            @if (it.Tipo == ItemTipo.Imagem && it.ImagemArquivo is not null)
+                            {
+                                <img class="thumb" src="imagens/@it.ImagemArquivo" alt="" loading="lazy" />
+                            }
+                            else
+                            {
+                                <div class="prev">@Previa(it)</div>
+                            }
+                            <div class="meta">
+                                <span class="kind @it.Tipo.Css()">@(it.Linguagem ?? it.Tipo.Nome())</span>
+                                @if (it.Tipo == ItemTipo.Lembrete && it.DataLembrete is { } d)
+                                {
+                                    <span class="due @(it.Concluido ? "ok" : it.LembreteVencido ? "late" : "")">
+                                        @(it.Concluido ? "concluído" : it.LembreteVencido ? $"venceu {d:dd/MM}" : $"vence {d:dd/MM}")
+                                    </span>
+                                }
+                                @if (it.Usos > 0)
+                                {
+                                    <span class="chip">@(it.Usos)×</span>
+                                }
+                                @foreach (var tg in it.ListaTags)
+                                {
+                                    <span class="chip">#@tg</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </section>
+
+    <main class="detail">
+        @if (Selecionado is { } sel)
+        {
+            <ItemDetalhe Item="sel"
+                         OnCopiar="Copiar"
+                         OnFavoritar="() => Favoritar(sel.Id)"
+                         OnEditar="() => Editar(sel)"
+                         OnExcluir="() => Excluir(sel.Id)"
+                         OnConcluir="() => Concluir(sel.Id)" />
+        }
+        else if (!carregando)
+        {
+            <div class="empty">Selecione um item na lista.</div>
+        }
+    </main>
+</div>
+
+@if (editando is not null)
+{
+    <ItemEditor Item="editando" Novo="editando.Id == 0" Erro="@erroEditor" Enviando="enviandoImagem"
+                OnSalvar="Salvar" OnCancelar="Cancelar" />
+}
+
+@if (aviso is not null)
+{
+    <div class="toast" role="status">@aviso</div>
+}
+
+@code {
+    private List<Item> todos = [];
+    private bool carregando = true;
+    private string busca = "";
+    private ItemTipo? filtroTipo;
+    private bool filtroFav;
+    private string? filtroTag;
+    private Ordem ordem = Ordem.Recentes;
+    private int? selId;
+
+    private Item? editando;
+    private string? imagemOriginal;
+    private string? erroEditor;
+    private bool enviandoImagem;
+
+    private string? aviso;
+    private CancellationTokenSource? avisoCts;
+    private string permissaoNotificacao = "granted";
+
+    private DotNetObjectReference<Home>? refJs;
+    private readonly CancellationTokenSource ciclo = new();
+
+    private bool filtroTodos => filtroTipo is null && !filtroFav;
+
+    private List<Item> Filtrados =>
+        ItemService.Filtrar(todos, busca, filtroTipo, filtroFav, filtroTag, ordem).ToList();
+
+    private Item? Selecionado => todos.FirstOrDefault(i => i.Id == selId);
+
+    private int LembretesVencidos => todos.Count(i => i.LembreteVencido);
+
+    private IEnumerable<(string Tag, int Qtd)> TagsMaisUsadas =>
+        todos.SelectMany(i => i.ListaTags).GroupBy(t => t)
+            .Select(g => (g.Key, g.Count()))
+            .OrderByDescending(x => x.Item2).ThenBy(x => x.Key)
+            .Take(12);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Recarregar();
+        selId = Filtrados.FirstOrDefault()?.Id;
+        carregando = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        refJs = DotNetObjectReference.Create(this);
+        permissaoNotificacao = await JS.InvokeAsync<string>("oj.init", refJs);
+        StateHasChanged();
+        _ = CicloLembretes(ciclo.Token);
+    }
+
+    private async Task Recarregar() => todos = await Itens.ListarAsync();
+
+    private void FiltrarTipo(ItemTipo? tipo, bool fav)
+    {
+        filtroTipo = tipo;
+        filtroFav = fav;
+        filtroTag = null;
+        SelecionarPrimeiroSeSumiu();
+    }
+
+    private void FiltrarTag(string tag)
+    {
+        filtroTag = filtroTag == tag ? null : tag;
+        SelecionarPrimeiroSeSumiu();
+    }
+
+    private void SelecionarPrimeiroSeSumiu()
+    {
+        var lista = Filtrados;
+        if (!lista.Any(i => i.Id == selId)) selId = lista.FirstOrDefault()?.Id;
+    }
+
+    private void Selecionar(int id) => selId = id;
+
+    private void TeclaItem(KeyboardEventArgs e, int id)
+    {
+        if (e.Key == "Enter") selId = id;
+    }
+
+    // ---------- edição ----------
+    private void Novo()
+    {
+        var tipo = filtroTipo ?? ItemTipo.Script;
+        editando = new Item
+        {
+            Tipo = tipo,
+            Linguagem = tipo == ItemTipo.Script ? "SQL" : null,
+            DataLembrete = tipo == ItemTipo.Lembrete ? DateTime.Today.AddDays(1).AddHours(9) : null,
+            Tags = filtroTag ?? ""
+        };
+        imagemOriginal = null;
+        erroEditor = null;
+    }
+
+    private void Editar(Item item)
+    {
+        editando = item.Clonar();
+        imagemOriginal = item.ImagemArquivo;
+        erroEditor = null;
+    }
+
+    private async Task Salvar()
+    {
+        if (editando is null) return;
+        erroEditor = Validar(editando);
+        if (erroEditor is not null) return;
+
+        if (editando.Tipo == ItemTipo.Script && string.IsNullOrEmpty(editando.Linguagem)) editando.Linguagem = "Outro";
+        var salvo = await Itens.SalvarAsync(editando);
+        editando = null;
+        await Recarregar();
+        selId = salvo.Id;
+        busca = "";
+        if (!Filtrados.Any(i => i.Id == salvo.Id)) { filtroTipo = null; filtroFav = false; filtroTag = null; }
+        await Avisar("Salvo");
+    }
+
+    private static string? Validar(Item i)
+    {
+        if (string.IsNullOrWhiteSpace(i.Titulo)) return "Dê um título para achar depois.";
+        return i.Tipo switch
+        {
+            ItemTipo.Imagem when i.ImagemArquivo is null => "Cole (Ctrl+V) ou escolha uma imagem.",
+            ItemTipo.Link when string.IsNullOrWhiteSpace(i.Url) => "Informe a URL.",
+            ItemTipo.Lembrete when i.DataLembrete is null => "Informe a data do lembrete.",
+            ItemTipo.Script when string.IsNullOrWhiteSpace(i.Conteudo) => "Cole o script.",
+            _ => null
+        };
+    }
+
+    private void Cancelar()
+    {
+        // imagem enviada nesta edição e descartada: apaga o arquivo
+        if (editando?.ImagemArquivo is { } nova && nova != imagemOriginal)
+            Imagens.Excluir(nova);
+        editando = null;
+    }
+
+    // ---------- ações do detalhe ----------
+    private async Task Copiar(string texto)
+    {
+        var ok = await JS.InvokeAsync<bool>("oj.copiar", texto);
+        if (selId is { } id && ok)
+        {
+            await Itens.RegistrarUsoAsync(id);
+            var item = todos.FirstOrDefault(i => i.Id == id);
+            if (item is not null) { item.Usos++; item.UltimoUso = DateTime.Now; }
+        }
+        await Avisar(ok ? "Copiado" : "Não consegui copiar. Selecione o texto e use Ctrl+C.");
+    }
+
+    private async Task Favoritar(int id)
+    {
+        await Itens.AlternarFavoritoAsync(id);
+        await Recarregar();
+    }
+
+    private async Task Concluir(int id)
+    {
+        await Itens.ConcluirLembreteAsync(id);
+        await Recarregar();
+    }
+
+    private async Task Excluir(int id)
+    {
+        var lista = Filtrados;
+        var idx = lista.FindIndex(i => i.Id == id);
+        await Itens.ExcluirAsync(id);
+        await Recarregar();
+        lista = Filtrados;
+        selId = lista.Count == 0 ? null : lista[Math.Clamp(idx, 0, lista.Count - 1)].Id;
+        await Avisar("Item excluído");
+    }
+
+    private async Task PedirNotificacoes()
+    {
+        permissaoNotificacao = await JS.InvokeAsync<string>("oj.pedirNotificacoes");
+    }
+
+    // ---------- chamados pelo JavaScript ----------
+    [JSInvokable] public Task AtalhoNovo() => InvokeAsync(() => { if (editando is null) Novo(); StateHasChanged(); });
+    [JSInvokable] public Task AtalhoEsc() => InvokeAsync(() => { if (editando is not null) { Cancelar(); StateHasChanged(); } });
+    [JSInvokable] public Task AtalhoSalvar() => InvokeAsync(Salvar);
+    [JSInvokable] public Task ImagemEnviando() => InvokeAsync(() => { enviandoImagem = true; StateHasChanged(); });
+
+    [JSInvokable]
+    public Task ImagemRecebida(string arquivo) => InvokeAsync(() =>
+    {
+        enviandoImagem = false;
+        if (editando is null) return;
+        if (editando.ImagemArquivo is { } anterior && anterior != imagemOriginal)
+            Imagens.Excluir(anterior);
+        editando.Tipo = ItemTipo.Imagem;
+        editando.ImagemArquivo = arquivo;
+        if (string.IsNullOrWhiteSpace(editando.Titulo)) editando.Titulo = $"Print de {DateTime.Now:dd/MM HH:mm}";
+        erroEditor = null;
+        StateHasChanged();
+    });
+
+    [JSInvokable]
+    public Task ImagemErro(string mensagem) => InvokeAsync(() =>
+    {
+        enviandoImagem = false;
+        erroEditor = mensagem;
+        StateHasChanged();
+    });
+
+    // ---------- lembretes ----------
+    private async Task CicloLembretes(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+        try
+        {
+            do
+            {
+                var vencidos = await Itens.PegarLembretesParaAvisarAsync();
+                if (vencidos.Count == 0) continue;
+                await InvokeAsync(async () =>
+                {
+                    foreach (var l in vencidos)
+                        await JS.InvokeVoidAsync("oj.notificar", $"Lembrete: {l.Titulo}", l.Conteudo);
+                    await Recarregar();
+                    StateHasChanged();
+                    await Avisar(vencidos.Count == 1 ? $"Lembrete: {vencidos[0].Titulo}" : $"{vencidos.Count} lembretes vencidos");
+                });
+            } while (await timer.WaitForNextTickAsync(ct));
+        }
+        catch (OperationCanceledException) { }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    // ---------- utilidades ----------
+    private async Task Avisar(string texto)
+    {
+        avisoCts?.Cancel();
+        avisoCts = new CancellationTokenSource();
+        var token = avisoCts.Token;
+        aviso = texto;
+        StateHasChanged();
+        try { await Task.Delay(2200, token); } catch (TaskCanceledException) { return; }
+        aviso = null;
+        StateHasChanged();
+    }
+
+    private static string Quando(DateTime d)
+    {
+        var hoje = DateTime.Today;
+        if (d.Date == hoje) return "hoje " + d.ToString("HH:mm");
+        if (d.Date == hoje.AddDays(-1)) return "ontem";
+        return d.Year == hoje.Year ? d.ToString("dd/MM") : d.ToString("dd/MM/yy");
+    }
+
+    private static string Previa(Item i)
+    {
+        var texto = i.Tipo == ItemTipo.Link ? i.Url ?? "" : i.Conteudo;
+        var linha = texto.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "";
+        return linha.Length > 140 ? linha[..140] : linha;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        ciclo.Cancel();
+        avisoCts?.Cancel();
+        try { await JS.InvokeVoidAsync("oj.desligar"); } catch (JSDisconnectedException) { }
+        refJs?.Dispose();
+    }
+}

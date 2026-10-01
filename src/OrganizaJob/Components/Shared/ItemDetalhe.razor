@@ -1,0 +1,142 @@
+<div class="dhead">
+    <h2>@Item.Titulo</h2>
+    <div class="actions">
+        <button class="btn star @(Item.Favorito ? "on" : "")" type="button" @onclick="OnFavoritar">
+            @(Item.Favorito ? "★ Favorito" : "☆ Favoritar")
+        </button>
+        <button class="btn" type="button" @onclick="OnEditar">Editar</button>
+        @if (confirmarExclusao)
+        {
+            <button class="btn danger" type="button" @onclick="OnExcluir">Confirmar exclusão</button>
+            <button class="btn" type="button" @onclick="() => confirmarExclusao = false">Cancelar</button>
+        }
+        else
+        {
+            <button class="btn" type="button" @onclick="() => confirmarExclusao = true">Excluir</button>
+        }
+    </div>
+</div>
+
+<div class="dmeta">
+    <span>Tipo <b class="@Item.Tipo.Css()">@(Item.Linguagem ?? Item.Tipo.Nome())</b></span>
+    <span>Criado <b>@Item.CriadoEm.ToString("dd/MM/yyyy HH:mm")</b></span>
+    @if (Item.AtualizadoEm > Item.CriadoEm.AddMinutes(1))
+    {
+        <span>Alterado <b>@Item.AtualizadoEm.ToString("dd/MM/yyyy HH:mm")</b></span>
+    }
+    @if (Item.Usos > 0)
+    {
+        <span>Copiado <b>@(Item.Usos)×</b>@(Item.UltimoUso is { } u ? $" (último em {u:dd/MM HH:mm})" : "")</span>
+    }
+    @if (Item.ListaTags.Count > 0)
+    {
+        <span>Tags <b>@string.Join(" ", Item.ListaTags.Select(t => "#" + t))</b></span>
+    }
+</div>
+
+@switch (Item.Tipo)
+{
+    case ItemTipo.Script:
+        <div class="codewrap">
+            <div class="codebar">
+                <span>@Item.Linguagem</span>
+                <button type="button" @onclick="CopiarScript">@(variaveis.Count > 0 ? "Copiar preenchido" : "Copiar")</button>
+            </div>
+            <pre>@Destaque.Html(Item.Conteudo, Item.Linguagem)</pre>
+        </div>
+        @if (variaveis.Count > 0)
+        {
+            <div class="vars">
+                <h5>Preencha antes de copiar</h5>
+                @foreach (var v in variaveis)
+                {
+                    var nome = v;
+                    <div class="vrow">
+                        <label for="v_@nome">{{@nome}}</label>
+                        <input id="v_@nome" placeholder="valor de @nome" value="@Valor(nome)"
+                               @oninput="e => valores[nome] = e.Value?.ToString() ?? string.Empty" />
+                    </div>
+                }
+            </div>
+        }
+        break;
+
+    case ItemTipo.Imagem:
+        @if (Item.ImagemArquivo is not null)
+        {
+            <a href="imagens/@Item.ImagemArquivo" target="_blank" title="Abrir em tamanho real">
+                <img class="bigimg" src="imagens/@Item.ImagemArquivo" alt="@Item.Titulo" />
+            </a>
+        }
+        @if (!string.IsNullOrWhiteSpace(Item.Conteudo))
+        {
+            <p class="note">@Item.Conteudo</p>
+        }
+        break;
+
+    case ItemTipo.Lembrete:
+        <div class="remcard @(Item.LembreteVencido ? "late" : "")">
+            <span class="big">@Item.DataLembrete?.ToString("dd/MM/yyyy HH:mm")</span>
+            <span class="muted">
+                @(Item.Repetir switch { Repeticao.Semanal => "repete toda semana", Repeticao.Mensal => "repete todo mês", _ => "não repete" })
+            </span>
+            <button class="btn" type="button" @onclick="OnConcluir">
+                @(Item.Concluido ? "✓ Concluído (desfazer)" : Item.Repetir == Repeticao.Nenhuma ? "Marcar como concluído" : "Feito, próxima data")
+            </button>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Item.Conteudo))
+        {
+            <p class="note">@Item.Conteudo</p>
+        }
+        break;
+
+    case ItemTipo.Link:
+        <div class="linkbox">
+            <a href="@Item.Url" target="_blank" rel="noopener">@Item.Url</a>
+            <button class="btn" type="button" @onclick="() => OnCopiar.InvokeAsync(Item.Url ?? string.Empty)">Copiar</button>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Item.Conteudo))
+        {
+            <p class="note">@Item.Conteudo</p>
+        }
+        break;
+
+    default:
+        <p class="note">@Item.Conteudo</p>
+        <button class="btn" type="button" @onclick="() => OnCopiar.InvokeAsync(Item.Conteudo)">Copiar texto</button>
+        break;
+}
+
+@code {
+    [Parameter, EditorRequired] public Item Item { get; set; } = default!;
+    [Parameter] public EventCallback<string> OnCopiar { get; set; }
+    [Parameter] public EventCallback OnFavoritar { get; set; }
+    [Parameter] public EventCallback OnEditar { get; set; }
+    [Parameter] public EventCallback OnExcluir { get; set; }
+    [Parameter] public EventCallback OnConcluir { get; set; }
+
+    private int idAnterior = -1;
+    private string conteudoAnterior = "";
+    private bool confirmarExclusao;
+    private IReadOnlyList<string> variaveis = [];
+    private readonly Dictionary<string, string> valores = [];
+
+    protected override void OnParametersSet()
+    {
+        if (Item.Id != idAnterior)
+        {
+            idAnterior = Item.Id;
+            valores.Clear();
+            confirmarExclusao = false;
+        }
+        if (Item.Conteudo != conteudoAnterior || variaveis.Count == 0)
+        {
+            conteudoAnterior = Item.Conteudo;
+            variaveis = Item.Tipo == ItemTipo.Script ? Destaque.Variaveis(Item.Conteudo) : [];
+        }
+    }
+
+    private string Valor(string nome) => valores.TryGetValue(nome, out var v) ? v : "";
+
+    private Task CopiarScript() => OnCopiar.InvokeAsync(Destaque.Preencher(Item.Conteudo, valores));
+}

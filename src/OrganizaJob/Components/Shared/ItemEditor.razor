@@ -1,0 +1,149 @@
+<div class="scrim">
+    <form class="modal" @onsubmit="OnSalvar" @onsubmit:preventDefault="true">
+        <h3>@(Novo ? "Novo item" : "Editar item")</h3>
+        <p class="sub">Dica: cole um print com Ctrl+V a qualquer momento nesta janela.</p>
+
+        <div class="tabs" role="tablist">
+            @foreach (var tipo in Enum.GetValues<ItemTipo>())
+            {
+                var t = tipo;
+                <button type="button" role="tab" class="@(Item.Tipo == t ? "on" : "")" @onclick="() => MudarTipo(t)">@t.Nome()</button>
+            }
+        </div>
+
+        <div class="field">
+            <label for="ftitulo">Título</label>
+            <input id="ftitulo" @ref="campoTitulo" @bind="Item.Titulo" @bind:event="oninput" maxlength="200"
+                   placeholder="Ex.: Consulta de pedidos travados" autocomplete="off" />
+        </div>
+
+        @switch (Item.Tipo)
+        {
+            case ItemTipo.Script:
+                <div class="field">
+                    <label for="flang">Linguagem</label>
+                    <select id="flang" @bind="Item.Linguagem">
+                        @foreach (var l in ItemTipoInfo.Linguagens)
+                        {
+                            <option value="@l">@l</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="fconteudo">Script <span class="hint">use {{nome}} nos trechos que mudam</span></label>
+                    <textarea id="fconteudo" class="code" @bind="Item.Conteudo" @bind:event="oninput" spellcheck="false"
+                              placeholder="SELECT * FROM pedidos WHERE id = {{id}}"></textarea>
+                </div>
+                break;
+
+            case ItemTipo.Imagem:
+                <div class="drop @(Enviando ? "busy" : "")" id="oj-drop">
+                    @if (Enviando)
+                    {
+                        <span>Enviando imagem…</span>
+                    }
+                    else if (Item.ImagemArquivo is not null)
+                    {
+                        <img src="imagens/@Item.ImagemArquivo" alt="Pré-visualização" />
+                        <small>Cole ou arraste outra para trocar</small>
+                    }
+                    else
+                    {
+                        <span><b>Cole o print aqui (Ctrl+V)</b><br />ou arraste um arquivo</span>
+                    }
+                    <label class="btn small" for="oj-arquivo">Escolher arquivo…</label>
+                    <input id="oj-arquivo" type="file" accept="image/*" hidden />
+                </div>
+                <div class="field">
+                    <label for="fconteudo">Descrição</label>
+                    <textarea id="fconteudo" class="short" @bind="Item.Conteudo" @bind:event="oninput"
+                              placeholder="Quando acontece, como resolveu…"></textarea>
+                </div>
+                break;
+
+            case ItemTipo.Lembrete:
+                <div class="row2">
+                    <div class="field">
+                        <label for="fdata">Data e hora</label>
+                        <input id="fdata" type="datetime-local" @bind="Item.DataLembrete" />
+                    </div>
+                    <div class="field">
+                        <label for="frep">Repetir</label>
+                        <select id="frep" @bind="Item.Repetir">
+                            <option value="@Repeticao.Nenhuma">Não repetir</option>
+                            <option value="@Repeticao.Semanal">Toda semana</option>
+                            <option value="@Repeticao.Mensal">Todo mês</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="fconteudo">Detalhes</label>
+                    <textarea id="fconteudo" class="short" @bind="Item.Conteudo" @bind:event="oninput"></textarea>
+                </div>
+                break;
+
+            case ItemTipo.Link:
+                <div class="field">
+                    <label for="furl">URL</label>
+                    <input id="furl" type="url" @bind="Item.Url" @bind:event="oninput" placeholder="https://" />
+                </div>
+                <div class="field">
+                    <label for="fconteudo">Observação</label>
+                    <textarea id="fconteudo" class="short" @bind="Item.Conteudo" @bind:event="oninput"></textarea>
+                </div>
+                break;
+
+            default:
+                <div class="field">
+                    <label for="fconteudo">Texto</label>
+                    <textarea id="fconteudo" @bind="Item.Conteudo" @bind:event="oninput"></textarea>
+                </div>
+                break;
+        }
+
+        <div class="field">
+            <label for="ftags">Tags <span class="hint">separe por vírgula</span></label>
+            <input id="ftags" @bind="Item.Tags" @bind:event="oninput" placeholder="sql, protheus, produção" autocomplete="off" />
+        </div>
+
+        <label class="check">
+            <input type="checkbox" @bind="Item.Favorito" /> Favorito
+        </label>
+
+        @if (Erro is not null)
+        {
+            <p class="erro" role="alert">@Erro</p>
+        }
+
+        <div class="mfoot">
+            <small>Ctrl+Enter salva · Esc cancela</small>
+            <div class="actions">
+                <button class="btn" type="button" @onclick="OnCancelar">Cancelar</button>
+                <button class="btn primary" type="submit" disabled="@Enviando">Salvar</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Item Item { get; set; } = default!;
+    [Parameter] public bool Novo { get; set; }
+    [Parameter] public string? Erro { get; set; }
+    [Parameter] public bool Enviando { get; set; }
+    [Parameter] public EventCallback OnSalvar { get; set; }
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    private ElementReference campoTitulo;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await campoTitulo.FocusAsync();
+    }
+
+    private void MudarTipo(ItemTipo t)
+    {
+        Item.Tipo = t;
+        if (t == ItemTipo.Script && string.IsNullOrEmpty(Item.Linguagem)) Item.Linguagem = "SQL";
+        if (t == ItemTipo.Lembrete && Item.DataLembrete is null) Item.DataLembrete = DateTime.Today.AddDays(1).AddHours(9);
+    }
+}
