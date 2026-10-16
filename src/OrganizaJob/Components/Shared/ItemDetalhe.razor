@@ -70,7 +70,7 @@
         }
         @if (!string.IsNullOrWhiteSpace(Item.Conteudo))
         {
-            <p class="note">@Item.Conteudo</p>
+            <TextoMd Texto="@Item.Conteudo" />
         }
         break;
 
@@ -86,7 +86,7 @@
         </div>
         @if (!string.IsNullOrWhiteSpace(Item.Conteudo))
         {
-            <p class="note">@Item.Conteudo</p>
+            <TextoMd Texto="@Item.Conteudo" />
         }
         break;
 
@@ -97,12 +97,12 @@
         </div>
         @if (!string.IsNullOrWhiteSpace(Item.Conteudo))
         {
-            <p class="note">@Item.Conteudo</p>
+            <TextoMd Texto="@Item.Conteudo" />
         }
         break;
 
     default:
-        <p class="note">@Item.Conteudo</p>
+        <TextoMd Texto="@Item.Conteudo" Sumario="true" />
         <button class="btn" type="button" @onclick="() => OnCopiar.InvokeAsync(Item.Conteudo)">Copiar texto</button>
         break;
 }

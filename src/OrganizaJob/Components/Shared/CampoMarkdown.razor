@@ -1,0 +1,45 @@
+@* Campo de texto com abas Escrever / Visualizar, como no GitHub. *@
+<div class="field mdfield">
+    <div class="mdhead">
+        <label for="@Id">@Rotulo <span class="hint">aceita Markdown</span></label>
+        <div class="seg" role="tablist">
+            <button type="button" role="tab" aria-selected="@(!previa)" class="@(previa ? "" : "on")" @onclick="() => previa = false">Escrever</button>
+            <button type="button" role="tab" aria-selected="@previa" class="@(previa ? "on" : "")" @onclick="() => previa = true">Visualizar</button>
+        </div>
+    </div>
+    @if (previa)
+    {
+        <div class="mdprev @Classe">
+            @if (string.IsNullOrWhiteSpace(Valor))
+            {
+                <p class="muted">Nada para visualizar.</p>
+            }
+            else
+            {
+                <TextoMd Texto="@Valor" />
+            }
+        </div>
+    }
+    else
+    {
+        <textarea id="@Id" class="@Classe" value="@Valor" @oninput="Mudou" placeholder="@Placeholder"></textarea>
+        <small class="mdajuda"># Título · **negrito** · _itálico_ · - lista · - [ ] tarefa · `código` · ```sql bloco``` · | tabela | · [texto](url) · &gt; [!NOTE]</small>
+    }
+</div>
+
+@code {
+    [Parameter] public string Valor { get; set; } = "";
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+    [Parameter] public string Id { get; set; } = "fconteudo";
+    [Parameter] public string Rotulo { get; set; } = "Texto";
+    [Parameter] public string? Classe { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+
+    private bool previa;
+
+    private Task Mudou(ChangeEventArgs e)
+    {
+        Valor = e.Value?.ToString() ?? "";
+        return ValorChanged.InvokeAsync(Valor);
+    }
+}

@@ -31,6 +31,7 @@ Backup = copiar essa pasta. A `App_Data` está no `.gitignore`.
 | Buscar | `Ctrl+K`. Ignora acentos e maiúsculas. `#sql` filtra pela tag |
 | Salvar print | `Ctrl+V` em qualquer lugar da tela (abre um item novo já com a imagem), ou arrastar o arquivo |
 | Salvar / cancelar | `Ctrl+Enter` / `Esc` |
+| Markdown | Notas e descrições aceitam Markdown no padrão do GitHub: títulos, listas, `- [ ]` tarefas, tabelas, blocos ```` ```sql ```` com realce e botão Copiar, `> [!NOTE]` alertas, emojis `:rocket:`. No editor, alterne **Escrever / Visualizar**. Notas com 3+ títulos ganham sumário lateral, como no Wiki |
 | Variáveis em script | Escreva `{{servidor}}` no script. Na hora de copiar aparecem campos para preencher |
 | Mais usados | Cada cópia conta um uso. Ordene por **Mais usados** na lista |
 | Lembretes | Com data/hora e repetição semanal ou mensal. Clique em **Ativar avisos de lembrete** para receber notificação do Windows enquanto a página estiver aberta |
@@ -46,11 +47,14 @@ src/OrganizaJob/
     ItemService.cs        salvar, excluir, favoritos, usos, lembretes, busca
     ImagemService.cs      grava e serve os prints
     Destaque.cs           realce de sintaxe e variáveis {{ }}
+    MarkdownHtml.cs       Markdown (Markdig) no estilo GitHub, HTML bruto bloqueado
   Components/
     Pages/Home.razor      tela principal (navegação, lista, detalhe)
     Shared/ItemDetalhe.razor
     Shared/ItemEditor.razor
-  wwwroot/app.css, wwwroot/js/organizajob.js
+    Shared/TextoMd.razor        exibe Markdown (+ sumário)
+    Shared/CampoMarkdown.razor  editor Escrever / Visualizar
+  wwwroot/app.css, wwwroot/md.css, wwwroot/js/organizajob.js
 ```
 
 O app só escuta em `localhost` e não tem login. Se um dia for para um servidor, é preciso acrescentar autenticação.

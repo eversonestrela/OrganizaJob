@@ -1,0 +1,41 @@
+@* Texto em Markdown renderizado no estilo do GitHub. Com Sumario, textos longos ganham um índice dos títulos. *@
+@if (MostrarSumario)
+{
+    <div class="mdwrap"><div class="mdgrid">
+        <nav class="md-toc" aria-label="Sumário">
+            <h5>Conteúdo</h5>
+            <ul>
+                @foreach (var t in doc.Titulos)
+                {
+                    <li class="n@(Math.Clamp(t.Nivel - nivelMin + 1, 1, 4))"><a href="#@t.Id" class="md-ancora">@t.Texto</a></li>
+                }
+            </ul>
+        </nav>
+        <div class="md">@doc.Html</div>
+    </div></div>
+}
+else
+{
+    <div class="md">@doc.Html</div>
+}
+
+@code {
+    [Parameter] public string? Texto { get; set; }
+
+    /// <summary>Mostra o sumário quando o texto tem pelo menos 3 títulos.</summary>
+    [Parameter] public bool Sumario { get; set; }
+
+    private string? textoAnterior;
+    private DocumentoMd doc = MarkdownHtml.Renderizar("");
+    private int nivelMin = 1;
+
+    private bool MostrarSumario => Sumario && doc.Titulos.Count >= 3;
+
+    protected override void OnParametersSet()
+    {
+        if (Texto == textoAnterior) return;
+        textoAnterior = Texto;
+        doc = MarkdownHtml.Renderizar(Texto);
+        nivelMin = doc.Titulos.Count > 0 ? doc.Titulos.Min(t => t.Nivel) : 1;
+    }
+}

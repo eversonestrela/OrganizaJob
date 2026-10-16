@@ -59,6 +59,28 @@ window.oj = (() => {
         document.getElementById('oj-drop')?.classList.remove('over');
         enviar(arquivo);
     }
+    // Markdown: botão Copiar dos blocos de código e links internos (#título), sem passar pelo roteador do Blazor.
+    function onClick(e) {
+        const btn = e.target.closest?.('.md-copiar');
+        if (btn) {
+            const pre = btn.closest('.md-code')?.querySelector('pre');
+            if (!pre) return;
+            window.oj.copiar(pre.textContent).then(ok => {
+                const txt = btn.textContent;
+                btn.textContent = ok ? 'Copiado!' : 'Falhou';
+                setTimeout(() => { btn.textContent = txt; }, 1200);
+            });
+            return;
+        }
+        const a = e.target.closest?.('a[href^="#"]');
+        if (a && (a.closest('.md') || a.closest('.md-toc'))) {
+            e.preventDefault();
+            e.stopPropagation();
+            const alvo = document.getElementById(decodeURIComponent(a.getAttribute('href').slice(1)));
+            alvo?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+
     function onChange(e) {
         if (e.target?.id === 'oj-arquivo' && e.target.files?.[0]) {
             enviar(e.target.files[0]);
@@ -75,6 +97,7 @@ window.oj = (() => {
             document.addEventListener('dragleave', onDragLeave);
             document.addEventListener('drop', onDrop);
             document.addEventListener('change', onChange);
+            document.addEventListener('click', onClick, true);
             return ('Notification' in window) ? Notification.permission : 'unsupported';
         },
         desligar() {
@@ -85,6 +108,7 @@ window.oj = (() => {
             document.removeEventListener('dragleave', onDragLeave);
             document.removeEventListener('drop', onDrop);
             document.removeEventListener('change', onChange);
+            document.removeEventListener('click', onClick, true);
         },
         async copiar(texto) {
             try {

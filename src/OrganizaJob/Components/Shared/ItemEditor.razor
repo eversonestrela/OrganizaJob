@@ -1,5 +1,5 @@
 <div class="scrim">
-    <form class="modal" @onsubmit="OnSalvar" @onsubmit:preventDefault="true">
+    <form class="modal @(Item.Tipo == ItemTipo.Nota ? "wide" : "")" @onsubmit="OnSalvar" @onsubmit:preventDefault="true">
         <h3>@(Novo ? "Novo item" : "Editar item")</h3>
         <p class="sub">Dica: cole um print com Ctrl+V a qualquer momento nesta janela.</p>
 
@@ -54,11 +54,8 @@
                     <label class="btn small" for="oj-arquivo">Escolher arquivo…</label>
                     <input id="oj-arquivo" type="file" accept="image/*" hidden />
                 </div>
-                <div class="field">
-                    <label for="fconteudo">Descrição</label>
-                    <textarea id="fconteudo" class="short" @bind="Item.Conteudo" @bind:event="oninput"
-                              placeholder="Quando acontece, como resolveu…"></textarea>
-                </div>
+                <CampoMarkdown @bind-Valor="Item.Conteudo" Rotulo="Descrição" Classe="short"
+                               Placeholder="Quando acontece, como resolveu…" />
                 break;
 
             case ItemTipo.Lembrete:
@@ -76,10 +73,7 @@
                         </select>
                     </div>
                 </div>
-                <div class="field">
-                    <label for="fconteudo">Detalhes</label>
-                    <textarea id="fconteudo" class="short" @bind="Item.Conteudo" @bind:event="oninput"></textarea>
-                </div>
+                <CampoMarkdown @bind-Valor="Item.Conteudo" Rotulo="Detalhes" Classe="short" />
                 break;
 
             case ItemTipo.Link:
@@ -87,17 +81,12 @@
                     <label for="furl">URL</label>
                     <input id="furl" type="url" @bind="Item.Url" @bind:event="oninput" placeholder="https://" />
                 </div>
-                <div class="field">
-                    <label for="fconteudo">Observação</label>
-                    <textarea id="fconteudo" class="short" @bind="Item.Conteudo" @bind:event="oninput"></textarea>
-                </div>
+                <CampoMarkdown @bind-Valor="Item.Conteudo" Rotulo="Observação" Classe="short" />
                 break;
 
             default:
-                <div class="field">
-                    <label for="fconteudo">Texto</label>
-                    <textarea id="fconteudo" @bind="Item.Conteudo" @bind:event="oninput"></textarea>
-                </div>
+                <CampoMarkdown @bind-Valor="Item.Conteudo" Rotulo="Texto" Classe="long"
+                               Placeholder="Escreva em Markdown: # títulos, listas, tabelas, blocos de código…" />
                 break;
         }
 

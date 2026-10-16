@@ -424,6 +424,7 @@
 
     private static string Previa(Item i)
     {
+        if (i.Tipo is not (ItemTipo.Script or ItemTipo.Link)) return MarkdownHtml.Previa(i.Conteudo);
         var texto = i.Tipo == ItemTipo.Link ? i.Url ?? "" : i.Conteudo;
         var linha = texto.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0) ?? "";
         return linha.Length > 140 ? linha[..140] : linha;
